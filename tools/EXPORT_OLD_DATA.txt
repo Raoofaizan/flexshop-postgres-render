@@ -1,0 +1,35 @@
+EXPORT DATA FROM YOUR ORIGINAL BROWSER-ONLY HTML APP
+===================================================
+1. Open the ORIGINAL "FlexShop Manager (5).html" in the browser where you
+   have used it and where all your old customers/invoices are visible.
+2. Open the browser Developer Tools console (normally F12 -> Console).
+3. Paste the entire JavaScript snippet below and press Enter.
+4. A file named flexshop-browser-export.json should download.
+5. Sign into the NEW PostgreSQL app -> Settings -> One-Time Import.
+6. Select the downloaded JSON. The new database MUST be empty.
+7. Confirm that customer balances, invoice totals, and stock match.
+
+JavaScript to paste into the ORIGINAL application's console:
+
+(() => {
+  const keys = ['customers','invoices','inventory','jobs','expenses','staff','payments','staffLedger'];
+  const data = Object.fromEntries(keys.map(key => {
+    const value = localStorage.getItem('fps_' + key);
+    return [key, value ? JSON.parse(value) : []];
+  }));
+  const count = Object.values(data).reduce((sum,rows) => sum+rows.length,0);
+  if (!count) {
+    alert('No browser data found on this origin. Open the ORIGINAL app where your data is visible.');
+    return;
+  }
+  const blob = new Blob([JSON.stringify(data,null,2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href=url; a.download='flexshop-browser-export.json';
+  document.body.appendChild(a);a.click();a.remove();
+  setTimeout(() => URL.revokeObjectURL(url),3000);
+  alert('Exported '+count+' records. Keep this JSON file private.');
+})();
+
+Note: This does NOT erase or change any data in the original app.
+The file contains customer and business information. Do not share it publicly.

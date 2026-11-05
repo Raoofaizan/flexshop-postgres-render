@@ -1,0 +1,17 @@
+*{box-sizing:border-box}body{margin:0;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#171923;background:#f3f4f8}
+.auth-shell{display:grid;grid-template-columns:minmax(300px,.95fr) minmax(380px,1.05fr);min-height:100vh}
+.brand-panel{background:linear-gradient(145deg,#312e81,#4338ca 57%,#6366f1);padding:clamp(28px,6vw,80px);color:white;display:flex;flex-direction:column;justify-content:space-between;gap:60px}
+.brand-mark{display:flex;align-items:center;justify-content:center;font-size:34px;width:68px;height:68px;background:#ffffff2b;border:1px solid #ffffff38;border-radius:20px}
+.eyebrow,.small-tag{font-size:11px;font-weight:800;letter-spacing:.15em}
+h1{font-size:clamp(43px,6vw,72px);line-height:1.07;letter-spacing:-.055em;margin:18px 0 20px}
+.brand-panel p{line-height:1.7;max-width:360px;font-size:16px;color:#e0e7ff}
+.footnote{font-size:12px;color:#e0e7ff}
+.form-panel{display:flex;align-items:center;justify-content:center;padding:40px 24px}
+.form-card{max-width:420px;width:100%}.small-tag{color:#4338ca}
+h2{font-size:32px;letter-spacing:-.035em;margin:14px 0 10px}.help{color:#6b7280;margin:0 0 34px;line-height:1.5}
+label{display:block;font-size:13px;font-weight:700;margin:20px 0 8px}
+input{width:100%;border:1.5px solid #d1d5db;border-radius:10px;padding:13px 14px;font-size:15px;background:white;outline:none}
+input:focus{border-color:#4f46e5;box-shadow:0 0 0 3px #4f46e520}
+button{width:100%;border:none;border-radius:10px;padding:14px 18px;background:#4f46e5;color:white;font:700 15px Inter,sans-serif;cursor:pointer;margin-top:8px}
+button:hover{background:#4338ca}button:disabled{opacity:.65;cursor:wait}.error{color:#b91c1c;font-size:13px;min-height:19px;margin:14px 0 0}.privacy{font-size:12px;color:#6b7280;margin-top:26px;line-height:1.6}
+@media(max-width:750px){.auth-shell{grid-template-columns:1fr}.brand-panel{padding:28px;gap:18px}.brand-panel h1{font-size:36px}.brand-panel p{font-size:13px}.brand-mark{width:48px;height:48px;font-size:24px}.footnote{display:none}.form-panel{padding:32px 22px 50px}}
