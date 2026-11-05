@@ -31,10 +31,10 @@ class MockClient{
    const rows=(state.lines.get(p[0])||[]).map(x=>({item_id:x.item_id,quantity:x.quantity}));return {rows,rowCount:rows.length};
   }
   if(sql.startsWith('INSERT INTO invoices(')){
-   state.invoices.set(p[0],{id:p[0],no:p[1],customerId:p[2],date:p[3],total:p[4],paidAmt:p[5]});return {rowCount:1,rows:[]};
+   state.invoices.set(p[0],{id:p[0],no:p[1],customerId:p[2],date:p[3],total:p[4],paidAmt:p[5],notes:p[6]||''});return {rowCount:1,rows:[]};
   }
   if(sql.startsWith('UPDATE invoices SET')){
-   state.invoices.set(p[5],{id:p[5],no:p[0],customerId:p[1],date:p[2],total:p[3],paidAmt:p[4]});return {rowCount:1,rows:[]};
+   state.invoices.set(p[6],{id:p[6],no:p[0],customerId:p[1],date:p[2],total:p[3],paidAmt:p[4],notes:p[5]||''});return {rowCount:1,rows:[]};
   }
   if(sql.startsWith('DELETE FROM invoice_items')){state.lines.delete(p[0]);return {rowCount:1,rows:[]};}
   if(sql.startsWith('UPDATE inventory SET qty=qty+')){state.inventory.get(p[1]).qty+=Number(p[0]);return {rowCount:1,rows:[]};}
@@ -63,14 +63,16 @@ Module._load=function(request,parent,isMain){
 process.env.DATABASE_URL='postgresql://test:test@localhost:5432/test';
 const database=require('../db/database');
 Module._load=original;
-const form=(qty,paidAmt=0)=>({no:'INV-0001',customerId:'cust-1',date:'2026-11-04',paidAmt,
- items:[{itemId:'mat-1',sqft:qty,rate:25}]});
+const form=(qty,paidAmt=0)=>({no:'INV-0001',customerId:'cust-1',date:'2026-11-04',paidAmt,notes:'Handle with care',
+ items:[{itemId:'mat-1',desc:'Custom flex print',sqft:qty,rate:25}]});
 
 test('new invoice updates material stock once, edits restore old stock, deletion restores it',async()=>{
  const created=await database.saveInvoice(form(10,125));
  assert.equal(created.total,250);
  assert.equal(state.inventory.get('mat-1').qty,90);
  assert.equal(state.lines.get(created.id)[0].purchaseRate,10);
+ assert.equal(state.lines.get(created.id)[0].description,'Custom flex print');
+ assert.equal(state.invoices.get(created.id).notes,'Handle with care');
  const updated=await database.saveInvoice(form(20,125),created.id);
  assert.equal(updated.total,500);
  assert.equal(state.inventory.get('mat-1').qty,80,'edit must restore previously used 10 and subtract new 20');

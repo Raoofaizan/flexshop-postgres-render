@@ -225,12 +225,14 @@ function viewInventory(){
 
 // ---------- INVOICES ----------
 let draftItems = [];
-let draftDate='', draftNo='', draftCustomerId='', draftCustName='', draftPaidAmt=0, draftLineItemId='';
+let draftDate='', draftNo='', draftCustomerId='', draftCustName='', draftPaidAmt=0, draftLineItemId='', draftLineDesc='', draftNotes='';
 let editingInvoiceId = null;
 function captureInvHeader(){
  const d=document.getElementById('inv_date'); if(d) draftDate=d.value;
  const n=document.getElementById('inv_no'); if(n) draftNo=n.value;
  const p=document.getElementById('inv_paid'); if(p) draftPaidAmt=Number(p.value)||0;
+ const note=document.getElementById('inv_notes'); if(note) draftNotes=note.value;
+ const lineDesc=document.getElementById('li_desc'); if(lineDesc) draftLineDesc=lineDesc.value;
 }
 function matchCustomerByName(){
  const typed=(draftCustName||'').trim().toLowerCase();
@@ -243,6 +245,7 @@ function viewInvoices(){
  const unitLabel = selItem? (selItem.unit==='sqft'?'Sq.Ft':`Quantity (${esc(selItem.unit)})`) : 'Sq.Ft / Quantity';
  const invItemOpts = DB.inventory.map(x=>`<option value="${esc(x.id)}" ${x.id===draftLineItemId?'selected':''}>${esc(x.company)} - ${esc(x.name)} (${money(x.srate)}/${esc(x.unit)}, ${x.qty.toFixed(2)} ${esc(x.unit)} left)</option>`).join('');
  const total = draftItems.reduce((s,i)=>s+i.amount,0);
+ const defaultLineDesc = draftLineDesc || (selItem ? `${selItem.company} ${selItem.name}` : '');
  return `<div class="card">
  ${editingInvoiceId?`<div class="banner">✏️ Editing Invoice ${esc(draftNo)} — make changes and click Update, or <a href="#" id="cancelEdit" style="color:#92400e;font-weight:700">cancel edit</a></div>`:''}
  <h2>${editingInvoiceId?'Edit Invoice':'Create Invoice'}</h2>
@@ -267,15 +270,19 @@ function viewInvoices(){
   <div><label>Invoice No.</label><input id="inv_no" value="${esc(draftNo||nextInvoiceNo())}"></div>
  </div>
  <h2 style="margin-top:10px">Line Items</h2>
- <div class="row row3">
+ <div class="row row4">
   <div><label>Item (from Inventory)</label><select id="li_item"><option value="">-- select item --</option>${invItemOpts}</select></div>
+  <div><label>Description</label><input id="li_desc" value="${esc(defaultLineDesc)}" placeholder="Custom description for invoice"></div>
   <div><label>${esc(unitLabel)}</label><input id="li_sqft" type="number" step="0.01" placeholder="${esc(selItem?('e.g. 1 '+selItem.unit):'select item first')}"></div>
   <div><label>Rate /${selItem?selItem.unit:'unit'}</label><input id="li_rate" type="number" step="0.5" value="${selItem?selItem.srate:''}"></div>
  </div>
  <button class="btn ghost" id="addLine">+ Add Line Item</button>
- <div class="tw" style="margin-top:10px"><table><tr><th>Desc</th><th>Qty</th><th>Rate</th><th class="right">Amount</th><th></th></tr>
+ <div class="tw" style="margin-top:10px"><table><tr><th>Description</th><th>Qty</th><th>Rate</th><th class="right">Amount</th><th></th></tr>
  ${draftItems.map((it,idx)=>`<tr><td>${esc(it.desc)}</td><td>${it.sqft.toFixed(2)} ${esc(it.unit||'sqft')}</td><td>${money(it.rate)}</td><td class="right">${money(it.amount)}</td><td><button class="btn danger sm" data-rmline="${idx}">x</button></td></tr>`).join('')||'<tr><td colspan=5>No line items added</td></tr>'}
  </table></div>
+ <div class="row" style="margin-top:10px">
+  <div><label>Invoice Notes</label><textarea id="inv_notes" rows="4" placeholder="Terms, delivery details, special instructions, etc.">${esc(draftNotes||'')}</textarea></div>
+ </div>
  <div class="flexend"><div class="tot">Total: ${money(total)}</div></div>
  <div class="row row3" style="margin-top:8px">
   <div><label>Amount Paid Now</label><input id="inv_paid" type="number" value="${draftPaidAmt||0}"></div>
@@ -401,7 +408,7 @@ function nextInvoiceNo(){
  return 'INV-'+String(Math.max(0,...nums)+1).padStart(4,'0');
 }
 function clearInvoiceDraft(){
- draftItems=[];draftDate='';draftNo='';draftCustomerId='';draftCustName='';draftPaidAmt=0;draftLineItemId='';editingInvoiceId=null;
+ draftItems=[];draftDate='';draftNo='';draftCustomerId='';draftCustName='';draftPaidAmt=0;draftLineItemId='';draftLineDesc='';draftNotes='';editingInvoiceId=null;
 }
 function viewSettings(){
  return `<div class="card"><h2>Admin Settings</h2>
@@ -494,10 +501,10 @@ function wireEvents(){
   const inv=DB.invoices.find(i=>i.id===b.dataset.editInv);if(!inv)return;
   editingInvoiceId=inv.id;draftItems=inv.items.map(it=>({...it}));
   draftCustomerId=inv.customerId;draftCustName=custName(inv.customerId);
-  draftDate=inv.date;draftNo=inv.no;draftPaidAmt=inv.paidAmt;draftLineItemId='';
+  draftDate=inv.date;draftNo=inv.no;draftPaidAmt=inv.paidAmt;draftLineItemId='';draftLineDesc='';draftNotes=inv.notes||'';
   window.scrollTo(0,0);renderMain();
  });
- if(q('#li_item'))q('#li_item').onchange=()=>{captureInvHeader();draftLineItemId=q('#li_item').value;renderMain();};
+ if(q('#li_item'))q('#li_item').onchange=()=>{captureInvHeader();draftLineItemId=q('#li_item').value;draftLineDesc='';renderMain();};
  if(q('#inv_paid'))q('#inv_paid').oninput=()=>{
   const total=draftItems.reduce((s,it)=>s+it.amount,0);
   const paid=Number(q('#inv_paid').value)||0;
@@ -509,12 +516,13 @@ function wireEvents(){
   const sqft=Number(q('#li_sqft').value),rate=Number(q('#li_rate').value);
   if(!Number.isFinite(sqft)||sqft<=0)return alert('Enter a positive quantity');
   if(!Number.isFinite(rate)||rate<0)return alert('Rate must be zero or higher');
+  const desc=(q('#li_desc')?.value.trim()) || (item.company+' '+item.name);
   const existingQty=editingInvoiceId?(DB.invoices.find(i=>i.id===editingInvoiceId)?.items||[]).filter(it=>it.itemId===item.id).reduce((s,it)=>s+it.sqft,0):0;
   const alreadyDrafted=draftItems.filter(it=>it.itemId===item.id).reduce((s,it)=>s+it.sqft,0);
   const available=item.qty+existingQty;
   if(sqft+alreadyDrafted>available && !confirmDelete(`Only ${available.toFixed(2)} ${esc(item.unit)} available. Add anyway? The server will prevent saving if stock is insufficient.`))return;
-  draftItems.push({desc:item.company+' '+item.name,itemId:item.id,sqft,unit:item.unit,rate,amount:Math.round(sqft*rate*100)/100,purchaseRate:item.prate});
-  draftLineItemId='';captureInvHeader();renderMain();
+  draftItems.push({desc,itemId:item.id,sqft,unit:item.unit,rate,amount:Math.round(sqft*rate*100)/100,purchaseRate:item.prate});
+  draftLineItemId='';draftLineDesc='';captureInvHeader();renderMain();
  };
  onAll('[data-rmline]',b=>{draftItems.splice(Number(b.dataset.rmline),1);captureInvHeader();renderMain();});
  if(q('#clearDraft'))q('#clearDraft').onclick=()=>{clearInvoiceDraft();renderMain();};
@@ -523,7 +531,7 @@ function wireEvents(){
   captureInvHeader();matchCustomerByName();
   if(!draftCustomerId)return alert('Choose an existing customer or add a new one');
   const body={no:q('#inv_no').value,customerId:draftCustomerId,date:q('#inv_date').value,
-   paidAmt:Number(q('#inv_paid').value),items:draftItems.map(it=>({itemId:it.itemId,sqft:it.sqft,rate:it.rate}))};
+   paidAmt:Number(q('#inv_paid').value),notes:q('#inv_notes')?.value||'',items:draftItems.map(it=>({itemId:it.itemId,desc:it.desc,sqft:it.sqft,rate:it.rate}))};
   const result=await apply(editingInvoiceId?'/invoices/'+encodeURIComponent(editingInvoiceId):'/invoices',editingInvoiceId?'PUT':'POST',body);
   if(result){clearInvoiceDraft();renderMain();}
  };
@@ -595,35 +603,78 @@ function wireEvents(){
  };
 }
 
-function printInvoice(inv){
- const area = document.getElementById('printArea');
- area.innerHTML = `<div style="padding:30px;font-family:sans-serif;color:#000">
- <h1>FlexShop Manager</h1><h2>Invoice ${esc(inv.no)}</h2>
- <p>Customer: ${esc(custName(inv.customerId))}<br>Date: ${esc(inv.date)}</p>
- <table border=1 cellpadding=6 style="border-collapse:collapse;width:100%">
- <tr><th>Description</th><th>Qty</th><th>Rate</th><th>Amount</th></tr>
- ${inv.items.map(it=>`<tr><td>${esc(it.desc)}</td><td>${it.sqft.toFixed(2)} ${esc(it.unit||'sqft')}</td><td>${money(it.rate)}</td><td>${money(it.amount)}</td></tr>`).join('')}
- </table>
- <h3>Total: ${money(inv.total)} | Paid: ${money(inv.paidAmt)} | Balance: ${money(inv.total-inv.paidAmt)}</h3>
- </div>`;
+function formatPrintNotes(value){
+ const safe=esc(value||'').trim();
+ return safe ? safe.replace(/\n/g,'<br>') : '<span style="color:#6b7280">—</span>';
+}
+function renderPrintDocument(title, bodyHtml){
+ const area=document.getElementById('printArea');
+ area.innerHTML = `<style>
+  @page{size:A4;margin:16mm}
+  .print-doc{font-family:Inter,Arial,sans-serif;color:#111827;background:#fff}
+  .print-header{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;padding-bottom:18px;border-bottom:2px solid #e5e7eb;margin-bottom:20px}
+  .print-brand img{width:220px;max-width:100%;height:auto;border-radius:10px;border:1px solid #e5e7eb;background:#fff;padding:6px}
+  .print-brand small{display:block;margin-top:8px;color:#6b7280;font-size:12px;letter-spacing:.03em}
+  .print-title{text-align:right}
+  .print-title h1{margin:0 0 6px;font-size:28px;letter-spacing:-.03em;color:#111827}
+  .print-title .meta{font-size:12px;color:#4b5563;line-height:1.7}
+  .print-grid{display:grid;grid-template-columns:1.15fr .85fr;gap:16px;margin:18px 0}
+  .print-card{border:1px solid #e5e7eb;border-radius:14px;padding:14px 16px;background:#f9fafb}
+  .print-card h3{margin:0 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:#6b7280}
+  .print-card p{margin:0;line-height:1.7;font-size:13px}
+  .print-table{width:100%;border-collapse:collapse;margin-top:10px}
+  .print-table th,.print-table td{padding:11px 10px;border-bottom:1px solid #e5e7eb;font-size:13px;vertical-align:top}
+  .print-table th{text-align:left;background:#f3f4f6;color:#374151;font-size:11px;text-transform:uppercase;letter-spacing:.06em}
+  .print-table .right{text-align:right}
+  .print-summary{margin-top:18px;margin-left:auto;width:320px;max-width:100%;border:1px solid #e5e7eb;border-radius:14px;overflow:hidden}
+  .print-summary .row{display:flex;justify-content:space-between;padding:10px 14px;border-bottom:1px solid #e5e7eb;background:#fff}
+  .print-summary .row:last-child{border-bottom:none;background:#eef2ff;font-weight:800}
+  .print-notes{margin-top:18px;border:1px solid #e5e7eb;border-radius:14px;padding:14px 16px;background:#fff}
+  .print-notes h3{margin:0 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:#6b7280}
+  .print-notes p{margin:0;font-size:13px;line-height:1.7;color:#111827}
+  .ledger-total{margin-top:18px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+  .ledger-total .tile{border:1px solid #e5e7eb;border-radius:14px;padding:12px 14px;background:#f9fafb}
+  .ledger-total .tile span{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#6b7280}
+  .ledger-total .tile strong{display:block;margin-top:8px;font-size:18px;color:#111827}
+ </style><div class="print-doc"><div class="print-header"><div class="print-brand"><img src="/rohi-printers-logo.jpg" alt="Rohi Printers"><small>Professional print, invoice and ledger management</small></div><div class="print-title"><h1>${title}</h1><div class="meta">Printed on ${new Date().toLocaleString()}<br>Generated from Rohi Printers dashboard</div></div></div>${bodyHtml}</div>`;
  window.print();
+}
+function printInvoice(inv){
+ const customer=DB.customers.find(c=>c.id===inv.customerId);
+ const balance=inv.total-inv.paidAmt;
+ const body=`<div class="print-grid">
+  <div class="print-card"><h3>Bill To</h3><p><strong>${esc(customer?.name||'Walk-in Customer')}</strong><br>Customer ID: ${esc(customer?.custId||'-')}<br>Phone: ${esc(customer?.phone||'-')}<br>Address: ${esc(customer?.addr||'-')}</p></div>
+  <div class="print-card"><h3>Invoice Details</h3><p><strong>Invoice #:</strong> ${esc(inv.no)}<br><strong>Date:</strong> ${esc(inv.date)}<br><strong>Status:</strong> ${balance<=0?'Paid':'Outstanding'}<br><strong>Items:</strong> ${inv.items.length}</p></div>
+ </div>
+ <table class="print-table"><tr><th style="width:46%">Description</th><th>Qty</th><th>Rate</th><th class="right">Amount</th></tr>
+ ${inv.items.map(it=>`<tr><td>${esc(it.desc)}</td><td>${it.sqft.toFixed(2)} ${esc(it.unit||'sqft')}</td><td>${money(it.rate)}</td><td class="right">${money(it.amount)}</td></tr>`).join('')}
+ </table>
+ <div class="print-summary">
+  <div class="row"><span>Total</span><strong>${money(inv.total)}</strong></div>
+  <div class="row"><span>Paid</span><strong>${money(inv.paidAmt)}</strong></div>
+  <div class="row"><span>Balance</span><strong>${money(balance)}</strong></div>
+ </div>
+ <div class="print-notes"><h3>Notes</h3><p>${formatPrintNotes(inv.notes)}</p></div>`;
+ renderPrintDocument('Invoice', body);
 }
 function printCustomerLedger(custId){
  const c=DB.customers.find(c=>c.id===custId); if(!c) return;
  const entries=customerLedgerEntries(custId);
  const totalDebit=entries.reduce((s,e)=>s+e.debit,0);
  const totalCredit=entries.reduce((s,e)=>s+e.credit,0);
- const area=document.getElementById('printArea');
- area.innerHTML=`<div style="padding:30px;font-family:sans-serif;color:#000">
- <h1>FlexShop Manager</h1><h2>Customer Ledger Statement</h2>
- <p>Customer: ${esc(c.name)} (${esc(c.custId)})<br>Phone: ${esc(c.phone||'-')}<br>Address: ${esc(c.addr||'-')}<br>Printed: ${today()}</p>
- <table border=1 cellpadding=6 style="border-collapse:collapse;width:100%">
- <tr><th>Date</th><th>Type</th><th>Reference</th><th>Debit (Billed)</th><th>Credit (Paid)</th><th>Balance</th></tr>
- ${entries.map(e=>`<tr><td>${esc(e.date)}</td><td>${esc(e.type)}</td><td>${esc(e.ref)}</td><td>${e.debit?money(e.debit):'-'}</td><td>${e.credit?money(e.credit):'-'}</td><td>${money(e.balance)}</td></tr>`).join('')}
+ const body=`<div class="print-grid">
+  <div class="print-card"><h3>Customer</h3><p><strong>${esc(c.name)}</strong><br>Customer ID: ${esc(c.custId)}<br>Phone: ${esc(c.phone||'-')}<br>Address: ${esc(c.addr||'-')}</p></div>
+  <div class="print-card"><h3>Statement Info</h3><p><strong>Statement Type:</strong> Customer Ledger<br><strong>Statement Date:</strong> ${today()}<br><strong>Total Entries:</strong> ${entries.length}<br><strong>Outstanding:</strong> ${money(totalDebit-totalCredit)}</p></div>
+ </div>
+ <table class="print-table"><tr><th>Date</th><th>Type</th><th>Reference</th><th class="right">Debit</th><th class="right">Credit</th><th class="right">Balance</th></tr>
+ ${entries.map(e=>`<tr><td>${esc(e.date)}</td><td>${esc(e.type)}</td><td>${esc(e.ref)}</td><td class="right">${e.debit?money(e.debit):'-'}</td><td class="right">${e.credit?money(e.credit):'-'}</td><td class="right">${money(e.balance)}</td></tr>`).join('')}
  </table>
- <h3>Total Billed: ${money(totalDebit)} | Total Paid: ${money(totalCredit)} | Outstanding: ${money(totalDebit-totalCredit)}</h3>
+ <div class="ledger-total">
+  <div class="tile"><span>Total Billed</span><strong>${money(totalDebit)}</strong></div>
+  <div class="tile"><span>Total Paid</span><strong>${money(totalCredit)}</strong></div>
+  <div class="tile"><span>Outstanding</span><strong>${money(totalDebit-totalCredit)}</strong></div>
  </div>`;
- window.print();
+ renderPrintDocument('Customer Ledger', body);
 }
 
 startup();

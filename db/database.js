@@ -56,7 +56,7 @@ async function getData(conn=pool) {
   const results=await Promise.all([
     conn.query('SELECT id,cust_id AS "custId",name,phone,addr FROM customers ORDER BY created_at,id'),
     conn.query('SELECT id,type,company,name,unit,roll_size::float8 AS "rollSize",qty::float8 AS qty,prate::float8 AS prate,srate::float8 AS srate FROM inventory ORDER BY created_at,id'),
-    conn.query('SELECT id,no,customer_id AS "customerId",to_char(date,\'YYYY-MM-DD\') AS date,total::float8 AS total,paid_amt::float8 AS "paidAmt" FROM invoices ORDER BY created_at,id'),
+    conn.query('SELECT id,no,customer_id AS "customerId",to_char(date,\'YYYY-MM-DD\') AS date,total::float8 AS total,paid_amt::float8 AS "paidAmt",notes FROM invoices ORDER BY created_at,id'),
     conn.query('SELECT invoice_id AS "invoiceId",line_position AS position,item_id AS "itemId",description AS "desc",quantity::float8 AS sqft,unit,rate::float8 AS rate,purchase_rate::float8 AS "purchaseRate",amount::float8 AS amount FROM invoice_items ORDER BY invoice_id,line_position'),
     conn.query('SELECT id,invoice_id AS "invId",description AS "desc",to_char(due_date,\'YYYY-MM-DD\') AS due,status FROM jobs ORDER BY created_at,id'),
     conn.query('SELECT id,to_char(date,\'YYYY-MM-DD\') AS date,category AS cat,amount::float8 AS amount FROM expenses ORDER BY created_at,id'),
@@ -110,10 +110,11 @@ function validateInvoice(body) {
   const customerId=id(body.customerId,'Customer ID');
   const dt=date(body.date);
   const paidAmt=money(number(body.paidAmt??0,'Amount paid',{max:1e10}));
+  const notes=text(body.notes??'','Invoice notes',3000,{optional:true});
   const items=list(body.items,'Invoice line items',80);
   if(!items.length) throw new ApiError(400,'Please add at least one line item');
-  const lines=items.map(x=>({itemId:id(x.itemId,'Inventory item ID'),sqft:number(x.sqft,'Quantity',{min:0.0001,max:1e8,positive:true}),rate:number(x.rate,'Rate',{max:1e8})}));
-  return {no,customerId,date:dt,paidAmt,items:lines};
+  const lines=items.map(x=>({itemId:id(x.itemId,'Inventory item ID'),desc:text(x.desc??'','Line item description',500,{optional:true}),sqft:number(x.sqft,'Quantity',{min:0.0001,max:1e8,positive:true}),rate:number(x.rate,'Rate',{max:1e8})}));
+  return {no,customerId,date:dt,paidAmt,notes,items:lines};
 }
 
 async function saveInvoice(body,existingId=null) {
@@ -141,17 +142,17 @@ async function saveInvoice(body,existingId=null) {
     }
     const rows=data.items.map(line=>{
       const item=byId.get(line.itemId);
-      return {...line,description:item.company+' '+item.name,unit:item.unit,purchaseRate:item.prate,amount:money(line.sqft*line.rate)};
+      return {...line,description:line.desc||item.company+' '+item.name,unit:item.unit,purchaseRate:item.prate,amount:money(line.sqft*line.rate)};
     });
     const total=money(rows.reduce((acc,line)=>acc+line.amount,0));
     if(total>1e10) throw new ApiError(400,'Invoice total exceeds allowed limit');
     if(data.paidAmt>total) throw new ApiError(400,'Amount paid cannot exceed invoice total');
     const invoiceId=existingId||newId();
     if(existingId) {
-      await client.query('UPDATE invoices SET no=$1,customer_id=$2,date=$3,total=$4,paid_amt=$5 WHERE id=$6',[data.no,data.customerId,data.date,total,data.paidAmt,invoiceId]);
+      await client.query('UPDATE invoices SET no=$1,customer_id=$2,date=$3,total=$4,paid_amt=$5,notes=$6 WHERE id=$7',[data.no,data.customerId,data.date,total,data.paidAmt,data.notes,invoiceId]);
       await client.query('DELETE FROM invoice_items WHERE invoice_id=$1',[invoiceId]);
     } else {
-      await client.query('INSERT INTO invoices(id,no,customer_id,date,total,paid_amt) VALUES($1,$2,$3,$4,$5,$6)',[invoiceId,data.no,data.customerId,data.date,total,data.paidAmt]);
+      await client.query('INSERT INTO invoices(id,no,customer_id,date,total,paid_amt,notes) VALUES($1,$2,$3,$4,$5,$6,$7)',[invoiceId,data.no,data.customerId,data.date,total,data.paidAmt,data.notes]);
     }
     for(const itemId of materialIds) {
       const difference=(before.get(itemId)||0)-(after.get(itemId)||0);
@@ -262,7 +263,7 @@ async function importLegacy(payload) {
       const sum=money(lines.reduce((s,line)=>s+line.amount,0));
       const paid=number(inv.paidAmt??0,'Paid amount',{max:1e10});
       if(paid>sum)throw new ApiError(400,'Invoice '+invoiceId+' paid amount exceeds its total');
-      await client.query('INSERT INTO invoices(id,no,customer_id,date,total,paid_amt) VALUES($1,$2,$3,$4,$5,$6)',[invoiceId,text(inv.no,'Invoice number',60),customerId,date(inv.date),sum,paid]);
+      await client.query('INSERT INTO invoices(id,no,customer_id,date,total,paid_amt,notes) VALUES($1,$2,$3,$4,$5,$6,$7)',[invoiceId,text(inv.no,'Invoice number',60),customerId,date(inv.date),sum,paid,text(inv.notes??'','Invoice notes',3000,{optional:true})]);
       knownInvoices.add(invoiceId);
       for(let i=0;i<lines.length;i++){
         const l=lines[i];await client.query('INSERT INTO invoice_items(invoice_id,line_position,item_id,description,quantity,unit,rate,purchase_rate,amount) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)',[invoiceId,i,l.itemId,l.desc,l.qty,l.unit,l.rate,l.purchaseRate,l.amount]);
