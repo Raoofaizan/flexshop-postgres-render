@@ -636,7 +636,7 @@ function renderPrintDocument(title, bodyHtml){
   .ledger-total .tile{border:1px solid #e5e7eb;border-radius:14px;padding:12px 14px;background:#f9fafb}
   .ledger-total .tile span{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#6b7280}
   .ledger-total .tile strong{display:block;margin-top:8px;font-size:18px;color:#111827}
- </style><div class="print-doc"><div class="print-header"><div class="print-brand"><img src="/rohi-printers-logo.jpg" alt="Rohi Printers"><small>Professional print, invoice and ledger management</small></div><div class="print-title"><h1>${title}</h1><div class="meta">Printed on ${new Date().toLocaleString()}<br>Generated from Rohi Printers dashboard</div></div></div>${bodyHtml}</div>`;
+ </style><div class="print-doc"><div class="print-header"><div class="print-brand"><img src="/rohi-printers-logo.jpg" alt="Rohi Printers"><small>Faizan Block Jampur Road Opp/ G.G.H.S.School Kot Chutta Distt/ Dera Ghazi Khan<br>0333-7366600<br>03457366600</div><div class="print-title"><h1>${title}</h1><div class="meta">Printed on ${new Date().toLocaleString()}<br>Generated from Rohi Printers dashboard</div></div></div>${bodyHtml}</div>`;
  window.print();
 }
 function printInvoice(inv){
